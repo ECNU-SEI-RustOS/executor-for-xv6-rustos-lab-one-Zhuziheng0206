@@ -102,6 +102,8 @@ pub struct ProcData {
     pub pagetable: Option<Box<PageTable>>,
     /// 进程当前工作目录的 inode。
     pub cwd: Option<Inode>,
+    /// 进程系统调用追踪掩码，用于控制哪些系统调用被追踪。
+    pub trace_mask: usize,
 }
 
 
@@ -116,6 +118,7 @@ impl ProcData {
             tf: ptr::null_mut(),
             pagetable: None,
             cwd: None,
+            trace_mask: 0,
         }
     }
 
@@ -520,10 +523,51 @@ impl Proc {
             19 => self.sys_link(),
             20 => self.sys_mkdir(),
             21 => self.sys_close(),
+            22 => self.sys_trace(),
             _ => {
                 panic!("unknown syscall num: {}", a7);
             }
         };
+
+        // Print trace information if needed
+        let pdata = self.data.get_mut();
+        let trace_mask = pdata.trace_mask;
+        if trace_mask != 0 && a7 > 0 && a7 < 23 {
+            if (trace_mask & (1 << a7)) != 0 {
+                let pid = self.excl.lock().pid;
+                let syscall_names = [
+                    "unknown",
+                    "fork",
+                    "exit", 
+                    "wait",
+                    "pipe",
+                    "read",
+                    "kill",
+                    "exec",
+                    "fstat",
+                    "chdir",
+                    "dup",
+                    "getpid",
+                    "sbrk",
+                    "sleep",
+                    "uptime",
+                    "open",
+                    "write",
+                    "mknod",
+                    "unlink",
+                    "link",
+                    "mkdir",
+                    "close",
+                    "trace",
+                ];
+                let ret_val = match sys_result {
+                    Ok(ret) => ret as i64,
+                    Err(()) => -1i64,
+                };
+                println!("{}: syscall {} -> {}", pid, syscall_names[a7], ret_val);
+            }
+        }
+
         tf.a0 = match sys_result {
             Ok(ret) => ret,
             Err(()) => -1isize as usize,
@@ -690,6 +734,9 @@ impl Proc {
         
         // copy process name
         cdata.name.copy_from_slice(&pdata.name);
+
+        // copy trace mask from parent to child
+        cdata.trace_mask = pdata.trace_mask;
 
         let cpid = cexcl.pid;
 
