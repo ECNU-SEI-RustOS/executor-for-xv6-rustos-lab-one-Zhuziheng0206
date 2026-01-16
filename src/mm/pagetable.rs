@@ -478,6 +478,37 @@ impl PageTable {
         }
     }
 
+
+    /// 递归打印页表的树形结构及其映射关系。
+    pub fn vm_print_recursive(&self, depth: usize) {
+        for i in 0..512 {
+            let pte = &self.data[i];
+            if pte.is_valid() {
+                // Print indentation
+                for _ in 0..depth {
+                    print!(".. ");
+                }
+                // Print the index, pte value, and physical address
+                println!("..{}: pte {:x} pa {:x}", i, pte.data, pte.as_phys_addr().as_usize());
+                
+                // If this is not a leaf node (level > 0), recurse to next level
+                if !pte.is_leaf() && depth < 2 {
+                    let next_pgt = pte.as_page_table();
+                    unsafe {
+                        next_pgt.as_ref().unwrap().vm_print_recursive(depth + 1);
+                    }
+                }
+            }
+        }
+    }
+
+
+    /// 打印当前页表的所有映射关系，显示页表的树形结构。
+    pub fn vm_print(&self, depth: usize) {
+        println!("page table {:x}", self as *const PageTable as usize);
+        self.vm_print_recursive(depth);
+    }
+
     /// # 功能说明
     /// 初始化进程用户空间的第一个内存页（代码页），  
     /// 将传入的程序代码 `code` 拷贝到用户空间的固定起始位置（`USERTEXT`），  

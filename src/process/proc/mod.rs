@@ -529,7 +529,7 @@ impl Proc {
             }
         };
 
-        // Print trace information if needed
+        // 新增加的Print trace information if needed
         let pdata = self.data.get_mut();
         let trace_mask = pdata.trace_mask;
         if trace_mask != 0 && a7 > 0 && a7 < 23 {
